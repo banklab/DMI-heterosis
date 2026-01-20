@@ -445,8 +445,8 @@ def simulate_one_gen_stoch_3(haplo_freq, selection_mat, mig_vec, popsize, rec_ra
     # Recombination terms
     # Recombination terms
     rec_vec = np.zeros(8)
-    r_ab = rec[0]
-    r_bc = rec[1]
+    r_ab = rec_rate[0]
+    r_bc = rec_rate[1]
 
     ## abc
     # Loses
