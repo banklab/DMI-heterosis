@@ -16,7 +16,7 @@ rab = [1e-6,1e-2,1e-1]
 mig_vec = [0,0]
 
             
-for pA in [0.8,0.2,0.55,0.45, 0.5]:
+for pA in [0.8,0.2,0.55,0.45,0.6,0.4,0.5,0.7,0.3,0.51,0.49]:
                   # Haplotype frequencies
                   # abc,  Abc, aBc, ABc, abC,  AbC,  aBC,             ABC 
     haplo_freq = [0. ,    pA,  0. , 0. , 0. ,  0. ,  round(1 - pA,2), 0.]
@@ -25,13 +25,16 @@ for pA in [0.8,0.2,0.55,0.45, 0.5]:
     pC0 = haplo_freq[4] + haplo_freq[5] + haplo_freq[6] + haplo_freq[7]
 
     # Loop over combinations of parameters and generate datasets
-    for base_alpha in [0.001, 0.01, 0.02]: # Overdominance coefficients
-        for i in range(1,4):               # relative strength of DMIs
+    for base_alpha in [0.01, 0.02]: # Overdominance coefficients
+        for i in range(0,4):               # relative strength of DMIs
             overdom = [base_alpha, base_alpha]
             epi_vec = [base_alpha*i/2,base_alpha*i,base_alpha*i,base_alpha*i*2]
             
-
-            out_file_suffix = '_g='+str(int(i))+'a='+str(epi_vec[1])+'_pA0='+str(pA0)+'_pB0='+str(pB0)+'_pC0='+str(pC0)
+            # Change pattern for overdominance only
+            if i==0:
+                out_file_suffix = '_g='+str(int(i))+'a='+str(base_alpha)+'_pA0='+str(pA0)+'_pB0='+str(pB0)+'_pC0='+str(pC0)
+            else:
+                out_file_suffix = '_g='+str(int(i))+'a='+str(epi_vec[1])+'_pA0='+str(pA0)+'_pB0='+str(pB0)+'_pC0='+str(pC0)
             filename_alleles_ABN = out_file_prefix+'allele_ABN'+out_file_suffix+'.csv'
             filename_alleles_ANB = out_file_prefix+'allele_ANB'+out_file_suffix+'.csv'
             
@@ -77,27 +80,27 @@ for pA in [0.8,0.2,0.55,0.45, 0.5]:
                                             markersize=9, fontsize=12, linewidth=1,
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='het',
-                                            filename=out_file_prefix+'het_ABN'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'het_ABN'+out_file_suffix+'.png', skip_show=True)
 
                 plot_equilibrium_over_dist(resall_neutb_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             neutb=True, 
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='het',
-                                            filename=out_file_prefix+'het_ANB'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'het_ANB'+out_file_suffix+'.png', skip_show=True)
 
                 plot_equilibrium_over_dist(resall_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='freq',
-                                            filename=out_file_prefix+'freq_ABN'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'freq_ABN'+out_file_suffix+'.png', skip_show=True)
                 
                 plot_equilibrium_over_dist(resall_neutb_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             neutb=True, 
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='freq',
-                                            filename=out_file_prefix+'freq_ANB'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'freq_ANB'+out_file_suffix+'.png', skip_show=True)
 
 
 

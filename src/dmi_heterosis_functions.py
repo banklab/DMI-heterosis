@@ -893,7 +893,7 @@ def plot_dyn_freqs(haplo_freq,
     plt.legend(title="Allele", bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, frameon=False)
     plt.show()
     if "filename" in kwargs.keys():
-        fig.savefig(kwargs["filename"])
+        fig.savefig(kwargs["filename"], dpi=300, bbox_inches='tight')
     return(get_alleles(output[-1]))
 
 

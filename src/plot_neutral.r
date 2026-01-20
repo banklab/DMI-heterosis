@@ -18,10 +18,9 @@ library(stringr)
 options(warn=1)
 
 
-# Loading dataframes
-setwd(dirname(getActiveDocumentContext()$path)) # Works if executing code manually, not sourcing
+########### Loading dataframes
+setwd(dirname(getActiveDocumentContext()$path)) # Change dir to file. OBS: Might not work if sourcing.
 
-euclidean <- function(a, b) sqrt(sum((a - b)^2)) # Euclidean distance between two points. Might be useful to measure how equilibrium and initial freqs differ.
 
 alldfs = data_frame()
 alldfs_intra = data_frame()
@@ -29,10 +28,18 @@ alldfs_intra = data_frame()
 for (filename in list.files(path="../Output_new/", pattern="^allele_ABN*")) {
   dfalleles = read.csv(paste0("../Output_new/",filename))
   splitname = strsplit(filename, "_")[[1]]
+  dftype = ifelse(any(c("codom", "asym", "overdom", "recessive") %in% splitname), splitname[3], "codom+overdom")
   index_offset = as.integer(any(c("codom", "asym", "overdom", "recessive") %in% splitname))
   selcoeff = strsplit(splitname[3+index_offset], "=")[[1]]
-  g = ifelse("overdom" %in% splitname, 0, as.numeric(selcoeff[3]))
-  a = ifelse(any(c("codom", "overdom") %in% splitname), ifelse("overdom" %in% splitname, as.numeric(selcoeff[3]), 0), g/as.numeric(str_replace(selcoeff[2], "a", "")))
+  if (selcoeff[2]=="0a" & dftype=="codom+overdom"){
+    g=0
+    a=as.numeric(selcoeff[3])
+    dftype = "overdom" # Change type to only overdominance
+  }
+  else{
+    g = ifelse("overdom" %in% splitname, 0, as.numeric(selcoeff[3]))
+    a = ifelse(any(c("codom", "overdom") %in% splitname), ifelse("overdom" %in% splitname, as.numeric(selcoeff[3]), 0), g/as.numeric(str_replace(selcoeff[2], "a", "")))  
+  }
   a = ifelse(abs(a)==Inf,0,a)
   b = ifelse("asym" %in% splitname, 0, a)
   pA0=as.numeric(strsplit(splitname[4+index_offset], "=")[[1]][2])
@@ -42,7 +49,7 @@ for (filename in list.files(path="../Output_new/", pattern="^allele_ABN*")) {
   dfalleles$b=b
   dfalleles$pA0=pA0
   dfalleles$pB0=pB0
-  dfalleles$type = ifelse(any(c("codom", "asym", "overdom", "recessive") %in% splitname), splitname[3], "codom+DMI")
+  dfalleles$type = dftype
   dfalleles$filename = filename
   alldfs = rbind(alldfs,dfalleles)
 }
@@ -51,13 +58,20 @@ for (filename in list.files(path="../Output_new/", pattern="^allele_ABN*")) {
 for (filename in list.files(path="../Output_new/", pattern="^allele_ANB*")) {
   dfalleles = read.csv(paste0("../Output_new/",filename))
   splitname = strsplit(filename, "_")[[1]]
+  dftype = ifelse(any(c("codom", "asym", "overdom", "recessive") %in% splitname), splitname[3], "codom+overdom")
   index_offset = as.integer(any(c("codom", "asym", "overdom", "recessive") %in% splitname))
   selcoeff = strsplit(splitname[3+index_offset], "=")[[1]]
-  g = ifelse("overdom" %in% splitname, 0, as.numeric(selcoeff[3]))
-  
-  a = ifelse(any(c("codom", "overdom") %in% splitname), ifelse("overdom" %in% splitname, as.numeric(selcoeff[3]), 0), g/as.numeric(str_replace(selcoeff[2], "a", "")))
+  if (selcoeff[2]=="0a" & dftype=="codom+overdom"){
+    g=0
+    a=as.numeric(selcoeff[3])
+    dftype="overdom"
+  }
+  else{
+    g = ifelse("overdom" %in% splitname, 0, as.numeric(selcoeff[3]))
+    a = ifelse(any(c("codom", "overdom") %in% splitname), ifelse("overdom" %in% splitname, as.numeric(selcoeff[3]), 0), g/as.numeric(str_replace(selcoeff[2], "a", "")))  
+  }
   a = ifelse(abs(a)==Inf,0,a)
-  b = ifelse("asym" %in% splitname, 0, a)
+  b = ifelse("asym" %in% splitname, 0, a) # TODO: Change to arbitrary b in name
   pA0=as.numeric(strsplit(splitname[4+index_offset], "=")[[1]][2])
   pB0=1-pA0
   dfalleles$g=g
@@ -65,7 +79,7 @@ for (filename in list.files(path="../Output_new/", pattern="^allele_ANB*")) {
   dfalleles$b=b
   dfalleles$pA0=pA0
   dfalleles$pB0=pB0
-  dfalleles$type = ifelse(any(c("codom", "asym", "overdom", "recessive") %in% splitname), splitname[3], "codom+DMI")
+  dfalleles$type = dftype
   dfalleles$filename = filename
   alldfs_intra = rbind(alldfs_intra,dfalleles)
 }
@@ -74,6 +88,7 @@ for (filename in list.files(path="../Output_new/", pattern="^allele_ANB*")) {
 alldfs <- na.omit(alldfs)
 alldfs_intra <- na.omit(alldfs_intra)
 
+# Relative heterozygosity (Not used)
 alldfs$rel_het <- alldfs$het/(1- (alldfs$pA0^2 + alldfs$pB0^2))
 alldfs_intra$rel_het <- alldfs_intra$het/(1- (alldfs_intra$pA0^2 + alldfs_intra$pB0^2))
 
@@ -90,17 +105,35 @@ log_centered_trans <- function(x0 = 1e-4, base = 10) {
 }
 
 
-################ PLotting
+################ Plotting
 
 # Setting params for plot
-pA_init <- 0.8
-pB_init <- 0.2
-a_value <- 0.001
-b_value <- 0
-g_values <- c(0.0005,0.001,0.0015) #c(0)
+pA_init <- 0.7
+pB_init <- 0.3
+a_value <- 0.02
+b_value <- 0.02
+g_values <- c(0.02,0.04,0.06) #c(0)
 r_ab_values <- c(1e-1,1e-2,1e-6)
+architecture_type="codom+overdom"
 
-architecture_type="asym"
+## params for plot with OD only
+# pA_init <- 0.7
+# pB_init <- 0.3
+# a_value <- 0.02
+# b_value <- 0.02
+# g_values <- c(0)
+# r_ab_values <- c(1e-1,1e-2,1e-6)
+# architecture_type="overdom"
+
+### Params for plot with DMIs only
+# pA_init <- 0.7
+# pB_init <- 0.3
+# a_value <- 0
+# b_value <- 0
+# g_values <- c(0.02,0.04,0.06) #c(0)
+# r_ab_values <- c(1e-1,1e-6,1e-2)
+# architecture_type="codom"
+
 yaxis="het"
 ###########################
 
@@ -112,14 +145,15 @@ dfN <- alldfs %>%
 
 
 # Get eq frequencies of selected alleles
+# Filtered only for allele A, to get both sides when frequencies are equal.
 ABvalues <- alldfs_intra %>%
-  filter(allele %in% c("B"), a==a_value, b==b_value, g %in% g_values, r_ab %in% r_ab_values, pA0 %in% c(pA_init,pB_init), pos>=0.999 | pos<=0.001, type==architecture_type) %>%
+  filter(allele %in% c("A"), a==a_value, b==b_value, g %in% g_values, r_ab %in% r_ab_values, pA0 %in% c(pA_init,pB_init), pos>=0.999 | pos<=0.001, type==architecture_type) %>%
   group_by(r_ab, allele, g, pA0) %>%
   summarise(het = mean(het, na.rm = TRUE),
             freq= mean(freq, na.rm = TRUE),
             rel_het = mean(rel_het, na.rm = TRUE),
             .groups="drop") %>%
-  mutate(pos = if_else(pA0==pA_init, 1, 0),
+  mutate(pos = if_else(pA0==pA_init, 0, 1),
          freq = if_else(pA0==pA_init, freq, 1-freq))
 
 # Duplicate if pA_init=0.5
@@ -386,6 +420,8 @@ print(final_plot)
 
 #save_plot("../Fig/od_dmis_codominant_a=0.01.svg", final_plot, base_height = 6, base_width = 8)
 #save_plot("../Fig/od_dmis_codominant_a=0.01.pdf", final_plot, base_height = 6, base_width = 8)
+#save_plot("../Fig/od_dmis_codominant_a=0.02_pA=0.6.pdf", final_plot, base_height = 6, base_width = 8)
+#save_plot("../Fig/od_dmis_codominant_a=0.02_pA=0.7.pdf", final_plot, base_height = 6, base_width = 8)
 
 #save_plot("../Fig/od_dmis_recessive_a=0.01.svg", final_plot, base_height = 6, base_width = 8)
 #save_plot("../Fig/od_dmis_recessive_a=0.01.pdf", final_plot, base_height = 6, base_width = 8)
@@ -393,27 +429,31 @@ print(final_plot)
 #save_plot("../Fig/dmis_codominant.svg", final_plot, base_height = 6, base_width = 8)
 #save_plot("../Fig/dmis_codominant.pdf", final_plot, base_height = 6, base_width = 8)
 
+
+
+#########################
+# This plot has to be generated in two steps, one for overdominance and one for DMIs only. 
 ###### overdominance plot
 # Get plot for:
-# alpha = 0.01; r_ab=0.01; g = c(0)
+# alpha = 0.02; r_ab=0.01; g = c(0)
 
-#row1 <- plot_grid(plotlist = c(plot_list_p1[[1]],plot_list_p2[[1]],plot_list_p3[[1]]), ncol = 3, align = "h")
-#row2 <- plot_grid(plotlist = c(plot_list_p1[[2]],plot_list_p2[[2]],plot_list_p3[[2]]), ncol = 3, align = "h")
-#row3 <- plot_grid(plotlist = c(plot_list_p1[[3]],plot_list_p2[[3]],plot_list_p3[[3]]), ncol = 3, align = "h")
-#  
-#od_plot <- row2
-#od_plot
+# row1 <- plot_grid(plotlist = c(plot_list_p1[[1]],plot_list_p2[[1]],plot_list_p3[[1]]), ncol = 3, align = "h")
+# row2 <- plot_grid(plotlist = c(plot_list_p1[[2]],plot_list_p2[[2]],plot_list_p3[[2]]), ncol = 3, align = "h")
+# row3 <- plot_grid(plotlist = c(plot_list_p1[[3]],plot_list_p2[[3]],plot_list_p3[[3]]), ncol = 3, align = "h")
+# 
+# od_plot <- row2
+# od_plot
 ###### recessive DMIs plot
 # dmis_plot <- main_plot
-# # 
+# #
 # dmis_plot <- plot_grid(plotlist = c(plot_list_p1[[2]], plot_list_p2[[2]], plot_list_p3[[2]]), ncol = 3, align = "v")
 # row1 <- plot_grid(plotlist = c(plot_list_p1[[1]],plot_list_p2[[1]],plot_list_p3[[1]]), ncol = 3, align = "h")
 # row2 <- plot_grid(plotlist = c(plot_list_p1[[2]],plot_list_p2[[2]],plot_list_p3[[2]]), ncol = 3, align = "h")
 # row3 <- plot_grid(plotlist = c(plot_list_p1[[3]],plot_list_p2[[3]],plot_list_p3[[3]]), ncol = 3, align = "h")
-# #
+# 
 # dmis_plot <- row3
 # 
-# ### Joint plot
+# ## Joint plot
 # od_dmis_plot <- plot_grid(od_plot, dmis_plot, rel_heights = c(0.8,1), ncol = 1)
 # 
 # od_dmis_plot_shrunk <- plot_grid(od_dmis_plot, ncol = 1, scale = 0.93)
@@ -430,14 +470,14 @@ print(final_plot)
 # )
 # 
 # od_dmis_plot_2 <- plot_grid(od_dmis_plot_labeled, legend, ncol = 1, rel_heights = c(1, 0.05))
-# 
+# # 
 # print(od_dmis_plot_2)
  
 #save_plot("../Fig/separate_od_DMIs_a=0.01.svg", od_dmis_plot_2, base_height = 4, base_width = 8)
 #save_plot("../Fig/separate_od_DMIs_a=0.01.pdf", od_dmis_plot_2, base_height = 4, base_width = 8)
 
-#save_plot("../Fig/separate_od_DMIs_a=0.02.svg", od_dmis_plot_2, base_height = 4, base_width = 8)
-#save_plot("../Fig/separate_od_DMIs_a=0.02.pdf", od_dmis_plot_2, base_height = 4, base_width = 8)
+#save_plot("../Fig/separate_od_DMIs_a=0.02_pA=0.7.svg", od_dmis_plot_2, base_height = 4, base_width = 8)
+#save_plot("../Fig/separate_od_DMIs_a=0.02_pA=0.7.pdf", od_dmis_plot_2, base_height = 4, base_width = 8)
 
 
 ###########
@@ -452,17 +492,3 @@ print(final_plot)
 # 
 # print(row_plot)
 # # 
-
-
-
-#####################################
-
-## SFS
-
-# dfN %>% filter(g>0, rn_signed>0, pA0==0.8) %>%
-#   ggplot(aes(x=freq, fill = as.factor(g))) + 
-#   #geom_histogram(aes(y=after_stat(count)/sum(after_stat(count))), binwidth = 0.05, alpha=0.5, position="identity") +
-#   geom_density(aes(y=..density..),alpha=.6) +
-#   facet_wrap(~r_ab,ncol=1)
-# 
-# dfN %>% summary()

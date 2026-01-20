@@ -14,7 +14,7 @@ max_gen = 100000
 rab = [1e-6,1e-2,1e-1]
 mig_vec = [0,0]
 
-for pA in [0.8,0.2]:
+for pA in [0.8,0.2,0.6,0.4,0.7,0.3, 0.51,0.49]:
                  # abc,  Abc, aBc, ABc, abC,  AbC,  aBC,  ABC 
     haplo_freq = [0. , pA, 0. , 0. , 0. , 0. , round(1 - pA,2), 0.]
     pA0 = haplo_freq[1] + haplo_freq[3] + haplo_freq[5] + haplo_freq[7]
@@ -69,27 +69,27 @@ for pA in [0.8,0.2]:
                                             markersize=9, fontsize=12, linewidth=1,
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='het',
-                                            filename=out_file_prefix+'het_ABN_codom'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'het_ABN_codom'+out_file_suffix+'.png', skip_show=True)
 
                 plot_equilibrium_over_dist(resall_neutb_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             neutb=True, 
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='het',
-                                            filename=out_file_prefix+'het_ANB_codom'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'het_ANB_codom'+out_file_suffix+'.png', skip_show=True)
 
                 plot_equilibrium_over_dist(resall_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='freq',
-                                            filename=out_file_prefix+'freq_ABN_codom'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'freq_ABN_codom'+out_file_suffix+'.png', skip_show=True)
                 
                 plot_equilibrium_over_dist(resall_neutb_allele, 
                                             markersize=9, fontsize=12, linewidth=1,
                                             neutb=True, 
                                             allelelist=['A', 'B', 'N'],
                                             yaxis='freq',
-                                            filename=out_file_prefix+'freq_ANB_codom'+out_file_suffix+'.svg', skip_show=True)
+                                            filename=out_file_prefix+'freq_ANB_codom'+out_file_suffix+'.png', skip_show=True)
 
 
 
