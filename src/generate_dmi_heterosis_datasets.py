@@ -11,7 +11,7 @@ from pathlib import Path
 
 # Setting up sumulation parameters
 out_file_prefix = '../Output_new/'
-max_gen = 100000
+max_gen = 10000
 rab = [1e-6,1e-2,1e-1]
 mig_vec = [0,0]
 
@@ -39,12 +39,13 @@ for pA in [0.8,0.2,0.55,0.45,0.6,0.4,0.5,0.7,0.3,0.51,0.49]:
             filename_alleles_ANB = out_file_prefix+'allele_ANB'+out_file_suffix+'.csv'
             
             # Create file if it does not exist yet
+            print(Path(filename_alleles_ANB))
             if not Path(filename_alleles_ANB).is_file():
                 print('Generating '+out_file_suffix)
 
                 # Simulate for flanking regions
                 resall = simulate_populations(haplo_freq,
-                                         max_gen*4,
+                                         max_gen,
                                          get_selection_mat(overdom, epi_vec),
                                          mig_vec,
                                          rab,
@@ -52,7 +53,7 @@ for pA in [0.8,0.2,0.55,0.45,0.6,0.4,0.5,0.7,0.3,0.51,0.49]:
 
                 # Simulate for neutral between the DMI
                 resall_neutb = simulate_populations(haplo_freq, 
-                                         max_gen*4,
+                                         max_gen,
                                          get_selection_mat(overdom, epi_vec, neutb=True),
                                          mig_vec,
                                          rab,

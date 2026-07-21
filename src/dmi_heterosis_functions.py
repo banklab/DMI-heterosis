@@ -25,6 +25,7 @@ plt.rcParams["font.sans-serif"] = ["Arial"]
 
 # Exclude warnings
 warnings.filterwarnings('ignore')
+maxdelta = 1e-10 #0.000001 in 2 locus, 1e-10 in 3 locus
 
 
 def haplo_to_allele(haplo_freq):
@@ -224,7 +225,7 @@ def simulate_pop(haplo_freq0, t_max, selection_mat, mig_vec, rec_rate, popsize=0
             pop_new = simulate_one_gen_stoch(pop_new, selection_mat, mig_vec, popsize, rec_rate)
         pop_vector.append(pop_new)
         # Stop simulation early if allele frequency change is very small
-        if np.sum(np.abs(pop_vector[i] - pop_vector[i - 1])) < 0.000001:
+        if np.sum(np.abs(pop_vector[i] - pop_vector[i - 1])) < maxdelta: #0.000001
             break
 
     # Convert the result list to a numpy array
@@ -631,7 +632,7 @@ def simulate_pop_3(haplo_freq0, t_max, selection_mat, mig_vec, rec_rate, popsize
             pop_new = simulate_one_gen_stoch_3(pop_new, selection_mat, mig_vec, popsize, rec_rate)
         pop_vector.append(pop_new)
         # Stop simulation early if allele frequency change is in the order of magnitude of 1e-10
-        if np.sum(np.abs(pop_vector[i] - pop_vector[i - 1])) < 1e-10:
+        if np.sum(np.abs(pop_vector[i] - pop_vector[i - 1])) < maxdelta: #1e-10
             break
 
     # Convert the result list to a numpy array

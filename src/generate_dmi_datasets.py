@@ -10,11 +10,13 @@ from pathlib import Path
 
 # Setting up sumulation parameters
 out_file_prefix = '../Output_new/'
-max_gen = 100000
-rab = [1e-6,1e-2,1e-1]
+max_gen = 10000
+#rab = [1e-6,1e-2,1e-1]
+rab = [1e-6,1e-5,1e-4,1e-3,1e-2,1e-1]
 mig_vec = [0,0]
 
-for pA in [0.8,0.2,0.6,0.4,0.7,0.3, 0.51,0.49]:
+for pA in [0.7,0.3]:
+#for pA in [0.8,0.2,0.6,0.4,0.7,0.3, 0.51,0.49]:
                  # abc,  Abc, aBc, ABc, abC,  AbC,  aBC,  ABC 
     haplo_freq = [0. , pA, 0. , 0. , 0. , 0. , round(1 - pA,2), 0.]
     pA0 = haplo_freq[1] + haplo_freq[3] + haplo_freq[5] + haplo_freq[7]
@@ -22,8 +24,8 @@ for pA in [0.8,0.2,0.6,0.4,0.7,0.3, 0.51,0.49]:
     pC0 = haplo_freq[4] + haplo_freq[5] + haplo_freq[6] + haplo_freq[7]
 
     # Loop over parameters and generate datasets
-    for base_alpha in [0.001, 0.01, 0.02]: #for base_alpha in [0.001, 0.01, 0.02, 0.03]:
-        for i in range(1,4):
+    for base_alpha in [0.01]: #for base_alpha in [0.001, 0.01, 0.02, 0.03]:
+        for i in range(1,7):
             #overdom = [base_alpha, base_alpha]
             overdom = [0, 0]
             epi_vec = [base_alpha*i/2,base_alpha*i,base_alpha*i,base_alpha*i*2]
