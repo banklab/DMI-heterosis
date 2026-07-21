@@ -1,7 +1,6 @@
 ###############################################################################
 # plot_neutral.r
-# Julio Ayala Lopez
-# 10.2025
+# 05.05.2026
 #
 # Script to generate plots of neutral heterozygosity linked to a DMI and overdominant loci
 ###############################################################################
@@ -14,8 +13,92 @@ library(grid)
 library(scales)
 library(cowplot)
 library(stringr)
+library(extrafont)
+loadfonts(device = "pdf", quiet = TRUE)
 
 options(warn=1)
+
+##############################################################################
+##############################################################################
+# Config and parameters
+##############################################################################
+##############################################################################
+
+plot_type <- "combined"   # "combined" for DMIs+overdominance, or "separate" for OD and DMIs in separate panels
+save_plot <- F
+file_prefix <- str_replace_all(as.character(Sys.Date()), "-", "")
+
+yaxis <- "het"
+# Parameters per plot type
+
+params_combined <- list(
+  pA_init = 0.7,
+  pB_init = 0.3,
+  a_value = 0.02,
+  b_value = 0.02,
+  g_values  = c(0.02, 0.04, 0.06),
+  r_ab_values = c(1e-1, 1e-2, 1e-6),
+  architecture_type = "codom+overdom"
+)
+
+# Recessive DMIs + OD
+# params_combined <- list(
+#   pA_init = 0.7,
+#   pB_init = 0.3,
+#   a_value = 0.01,
+#   b_value = 0.01,
+#   g_values  = c(0.02, 0.04, 0.06),
+#   r_ab_values = c(1e-1, 1e-2, 1e-6),
+#   architecture_type = "recessive"
+# )
+
+# Only Codominant DMIs 
+# params_combined <- list(
+#   pA_init = 0.7,
+#   pB_init = 0.3,
+#   a_value = 0,
+#   b_value = 0,
+#   g_values  = c(0.02, 0.04, 0.06),
+#   r_ab_values = c(1e-1, 1e-2, 1e-6),
+#   architecture_type = "codom"
+# )
+
+# Codom+DMIs pA=0.5
+# params_combined <- list(
+#   pA_init = 0.5,
+#   pB_init = 0.5,
+#   a_value = 0.02,
+#   b_value = 0.02,
+#   g_values  = c(0.02, 0.04, 0.06),
+#   r_ab_values = c(1e-1, 1e-2, 1e-6),
+#   architecture_type = "codom+overdom"
+# )
+
+params_od <- list(
+  pA_init = 0.7,
+  pB_init = 0.3,
+  a_value = 0.02,
+  b_value = 0.02,
+  g_values  = c(0),
+  r_ab_values = c(1e-1, 1e-2, 1e-6),
+  architecture_type = "overdom",
+  row_idx = 2        # row from r_ab_values to plot
+)
+
+params_dmis <- list( # DMIs only
+  pA_init = 0.7,
+  pB_init = 0.3,
+  a_value = 0,       
+  b_value = 0,
+  g_values  = c(0.02, 0.04, 0.06),
+  r_ab_values = c(1e-1, 1e-2, 1e-6),
+  architecture_type = "codom",
+  row_idxs = c(1)  # which r_ab rows to stack
+)
+
+
+##############################################################################
+##############################################################################
 
 
 ########### Loading dataframes
@@ -107,388 +190,348 @@ log_centered_trans <- function(x0 = 1e-4, base = 10) {
 
 ################ Plotting
 
-# Setting params for plot
-pA_init <- 0.7
-pB_init <- 0.3
-a_value <- 0.02
-b_value <- 0.02
-g_values <- c(0.02,0.04,0.06) #c(0)
-r_ab_values <- c(1e-1,1e-2,1e-6)
-architecture_type="codom+overdom"
+# build the three plot columns for one parameter set. Uses alldfs, and alldfs_intra loaded before
 
-## params for plot with OD only
-# pA_init <- 0.7
-# pB_init <- 0.3
-# a_value <- 0.02
-# b_value <- 0.02
-# g_values <- c(0)
-# r_ab_values <- c(1e-1,1e-2,1e-6)
-# architecture_type="overdom"
+build_plot_lists <- function(params) {
+  
+  pA_init <- params$pA_init
+  pB_init <- params$pB_init
+  a_value <- params$a_value
+  b_value <- params$b_value
+  g_values <- params$g_values
+  r_ab_values <- params$r_ab_values
+  architecture_type <- params$architecture_type
+  
+  # dfN: neutral locus linked to A or B 
+  dfN <- alldfs %>%
+    mutate(
+      rn_signed = if_else(pA0 == pA_init,  r_bc, -r_bc),
+      freq = if_else(pA0 == pA_init, freq, 1 - freq)
+    ) %>%
+    filter(
+      pA0 %in% c(pA_init, pB_init),
+      a == a_value,
+      b == b_value,
+      g %in% g_values,
+      r_ab %in% r_ab_values,
+      allele == "N",
+      type == architecture_type
+    )
+  
 
-### Params for plot with DMIs only
-# pA_init <- 0.7
-# pB_init <- 0.3
-# a_value <- 0
-# b_value <- 0
-# g_values <- c(0.02,0.04,0.06) #c(0)
-# r_ab_values <- c(1e-1,1e-6,1e-2)
-# architecture_type="codom"
+  # ABvalues - equilibrium frequencies of selected alleles
+  ABvalues <- alldfs_intra %>%
+    filter(
+      allele %in% c("A"),
+      a == a_value,
+      b == b_value,
+      g %in% g_values,
+      r_ab %in% r_ab_values,
+      pA0 %in% c(pA_init, pB_init),
+      pos >= 0.999 | pos <= 0.001,
+      type == architecture_type
+    ) %>%
+    group_by(r_ab, allele, g, pA0) %>%
+    summarise(
+      het = mean(het,     na.rm = TRUE),
+      freq = mean(freq,    na.rm = TRUE),
+      rel_het = mean(rel_het, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    mutate(
+      pos = if_else(pA0 == pA_init, 0, 1),
+      freq = if_else(pA0 == pA_init, freq, 1 - freq)
+    )
+  
+  # Duplicate both sides when pA_init == 0.5 (symmetric case)
+  if (pA_init == 0.5) {
+    dfN <- rbind(dfN, dfN %>% mutate(rn_signed = -r_bc))
+    ABvalues <- rbind(ABvalues, ABvalues %>% mutate(pos = 0))
+  }
+  
+  # warn if either side of dfN is empty (for pA0 mismatches)
+  # n_left  <- sum(dfN$rn_signed < 0, na.rm = TRUE)
+  # n_right <- sum(dfN$rn_signed > 0, na.rm = TRUE)
+  # if (n_left == 0)  warning(sprintf("build_plot_lists [%s]: LEFT column (rn_signed<0) is empty. Check that pA0=%.1f rows exist in alldfs.", architecture_type, pB_init))
+  # if (n_right == 0) warning(sprintf("build_plot_lists [%s]: RIGHT column (rn_signed>0) is empty. Check that pA0=%.1f rows exist in alldfs.", architecture_type, pA_init))
+  
+  # Pre-compute x ranges for each side separately (avoids label/scale errors)
+  r_bc_left  <- dfN %>% filter(rn_signed < 0) %>% pull(r_bc)
+  r_bc_right <- dfN %>% filter(rn_signed > 0) %>% pull(r_bc)
+  x_min_left  <- if (length(r_bc_left)  > 0) min(r_bc_left)  else 1e-6
+  x_min_right <- if (length(r_bc_right) > 0) min(r_bc_right) else 1e-6
+  
+  n_g <- length(g_values)
+  colour_vals <- grDevices::colorRampPalette(c("dodgerblue3", "firebrick2"))(n_g)
+  ylims <- c(-0.05, switch(yaxis, het = 0.5, freq = 1.0, rel_het = 2.0, 1.0))
+  ybrks  <- c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0)
+  n_facets <- length(r_ab_values)
+  
+  # Shared theme snippet to hide x axis on non-last rows
+  hide_xaxis <- theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    axis.title.x = element_blank()
+  )
+  
+  
+  # Left column (p1): N linked on the A side;  rn_signed < 0
+  plot_list_p1 <- lapply(seq_len(n_facets), function(i) {
+    df_sub <- dfN %>% filter(rn_signed < 0, r_ab == r_ab_values[i])
+    
+    p <- ggplot(df_sub, aes(x = r_bc, y = .data[[yaxis]], colour = as.factor(g))) +
+    #p <- ggplot(df_sub, aes_string(x = "r_bc", y = yaxis, colour = "as.factor(g)")) +
+      geom_point(size = 1) +
+      geom_line(aes(group = interaction(g, pA0)), alpha = 0.4) +
+      geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
+      scale_x_continuous(
+        limits = c(x_min_left, 0.5),
+        breaks = c(1e-5, 1e-3, 1e-1),
+        labels = c(expression(10^-5), expression(10^-3), expression(10^-1)),
+        transform = c("log10", "reverse")
+      ) +
+      scale_colour_manual(values = colour_vals) +
+      scale_y_continuous(breaks = ybrks, limits = ylims) +
+      theme_minimal(base_family = "Times New Roman") +
+      theme(
+        axis.title.y = element_blank(),
+        axis.ticks = element_line(colour = "black", linewidth = 0.2),
+        axis.ticks.length = unit(0.1, "cm"),
+        strip.text = element_blank(),
+        strip.background  = element_blank(),
+        legend.position  = "none",
+        plot.margin = unit(c(0, 0, 0, 0), "cm"),
+        text=element_text(family="Times New Roman")
+      ) +
+      coord_cartesian(clip = "off")
+    
+    if (i < n_facets) {
+      p <- p + hide_xaxis
+    } else {
+      p <- p +
+        geom_text(
+          data = data.frame(x = max(r_bc_left, na.rm = TRUE), y = 0),
+          aes(x = x, y = y),
+          label = "N \u2190",
+          fontface = "bold",
+          hjust = 0.5, vjust = 1.8,
+          inherit.aes = FALSE
+        ) +
+        xlab(expression(r[an]))
+    }
+    p
+  })
+  
+  # Right column (p3): N linked on the B side;  rn_signed > 0
+  plot_list_p3 <- lapply(seq_len(n_facets), function(i) {
+    df_sub <- dfN %>% filter(rn_signed > 0, r_ab == r_ab_values[i])
+    
+    #p <- ggplot(df_sub, aes_string(x = "r_bc", y = yaxis, colour = "as.factor(g)")) +
+    p <- ggplot(df_sub, aes(x = r_bc, y = .data[[yaxis]], colour = as.factor(g))) +
+      geom_point(size = 1) +
+      geom_line(aes(group = interaction(g, pA0)), alpha = 0.4) +
+      geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
+      scale_x_continuous(
+        limits = c(x_min_right, 0.65),
+        breaks = c(1e-5, 1e-3, 1e-1),
+        labels = scales::trans_format("log10", scales::math_format(10^.x)),
+        trans  = "log10"
+      ) +
+      scale_colour_manual(values = colour_vals) +
+      scale_y_continuous(
+        breaks = ybrks,
+        limits = ylims,
+        sec.axis = sec_axis(~ ., name = expression(gamma), breaks = NULL, labels = NULL)
+      ) +
+      #fix here
+      geom_text(
+        data = data.frame(x = max(dfN$r_bc) + 0.1, y = 0.4),
+        aes(x = x, y = y),
+        #label = bquote(r[ab] == 10^.(log10(r_ab_values[i]))),
+        label = paste0("r[ab] == 10^", log10(r_ab_values[i])), 
+        parse = TRUE,
+        inherit.aes = FALSE,
+        hjust = 0, vjust = -1, angle = 270
+      ) +
+      theme_minimal(base_family = "Times New Roman") +
+      theme(
+        axis.title.y = element_blank(),
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks = element_line(colour = "black", linewidth = 0.2),
+        axis.ticks.length = unit(0.1, "cm"),
+        strip.text = element_blank(),
+        strip.background  = element_blank(),
+        legend.position = "none",
+        plot.margin = unit(c(0, 0, 0, 0), "cm")
+      ) +
+      coord_cartesian(clip = "off")
+    
+    if (i < n_facets) {
+      p <- p + hide_xaxis
+    } else {
+      p <- p +
+        geom_text(
+          data = data.frame(x = max(r_bc_right, na.rm = TRUE), y = 0),
+          aes(x = x, y = y),
+          label = "\u2192 N",
+          fontface = "bold",
+          hjust = 0.5, vjust = 1.8,
+          inherit.aes = FALSE
+        ) +
+        xlab(expression(r[bn]))
+    }
+    p
+  })
+  
 
-yaxis="het"
-###########################
-
-dfN <- alldfs %>%
-  mutate(rn_signed = if_else(pA0 == pA_init, r_bc, -r_bc),
-         freq = if_else(pA0==pA_init, freq, 1-freq)) %>%
-  filter(pA0 %in% c(pA_init,pB_init), a==a_value, b==b_value, g %in% g_values, r_ab %in% r_ab_values, allele=="N",
-         type==architecture_type)
-
-
-# Get eq frequencies of selected alleles
-# Filtered only for allele A, to get both sides when frequencies are equal.
-ABvalues <- alldfs_intra %>%
-  filter(allele %in% c("A"), a==a_value, b==b_value, g %in% g_values, r_ab %in% r_ab_values, pA0 %in% c(pA_init,pB_init), pos>=0.999 | pos<=0.001, type==architecture_type) %>%
-  group_by(r_ab, allele, g, pA0) %>%
-  summarise(het = mean(het, na.rm = TRUE),
-            freq= mean(freq, na.rm = TRUE),
-            rel_het = mean(rel_het, na.rm = TRUE),
-            .groups="drop") %>%
-  mutate(pos = if_else(pA0==pA_init, 0, 1),
-         freq = if_else(pA0==pA_init, freq, 1-freq))
-
-# Duplicate if pA_init=0.5
-if (pA_init==0.5){
-  dfN_dup <- dfN %>%
-    mutate(rn_signed = -r_bc)
-  dfN <- rbind(dfN, dfN_dup)
-  ABvalues <- rbind(ABvalues, ABvalues%>%mutate(pos = 0))  
+  # Centre column (p2): N positioned between A and B (alldfs_intra)
+  plot_list_p2 <- lapply(seq_len(n_facets), function(i) {
+    df_sub <- alldfs_intra %>%
+      filter(
+        pA0 == pA_init,
+        a == a_value,
+        b == b_value,
+        g  %in% g_values,
+        r_ab %in% r_ab_values,
+        allele == "N",
+        r_ab == r_ab_values[i],
+        type == architecture_type
+      )
+    
+    #p <- ggplot(df_sub, aes_string(x = "pos", y = yaxis, colour = "as.factor(g)")) +
+    p <- ggplot(df_sub, aes(x = pos, y = .data[[yaxis]], colour = as.factor(g))) +
+      geom_point(size = 1) +
+      geom_line(aes(group = interaction(g, pA0)), alpha = 0.4) +
+      geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
+      annotate("segment", x = 0, xend = 0, y = 0, yend = 0.5,
+               colour = "black", linetype = "dotted", linewidth = 0.2) +
+      annotate("segment", x = 1, xend = 1, y = 0, yend = 0.5,
+               colour = "black", linetype = "dotted", linewidth = 0.2) +
+      geom_point(
+        data = ABvalues %>% filter(r_ab == r_ab_values[i]),
+        aes(x = pos, y = .data[[yaxis]], colour = as.factor(g)),
+        #aes_string(x = "pos", y = yaxis, colour = "as.factor(g)"),
+        inherit.aes = FALSE,
+        size = 3
+      ) +
+      scale_colour_manual(values = colour_vals) +
+      scale_y_continuous(breaks = ybrks, limits = ylims) +
+      theme_minimal(base_family = "Times New Roman") +
+      theme(
+        axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.ticks = element_line(colour = "black", linewidth = 0.2),
+        axis.ticks.length = unit(0.1, "cm"),
+        strip.text = element_blank(),
+        legend.position = "none",
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(0, 0, 0.055, 0), "cm"),
+        text=element_text(family="Times New Roman")
+      ) +
+      coord_cartesian(clip = "off")
+    
+    if (i < n_facets) {
+      p <- p + hide_xaxis + theme(plot.margin = unit(c(0, 0, 0, 0), "cm"))
+    } else {
+      p <- p +
+        geom_text(data = data.frame(x = 0, y = 0), aes(x = x, y = y),
+                  label = "A", fontface = "bold", hjust = 0.5, vjust = 1.8,
+                  inherit.aes = FALSE) +
+        geom_text(data = data.frame(x = 1, y = 0), aes(x = x, y = y),
+                  label = "B", fontface = "bold", hjust = 0.5, vjust = 1.8,
+                  inherit.aes = FALSE) +
+        xlab("Relative position of N")
+    }
+    p
+  })
+  
+  list(p1 = plot_list_p1, p2 = plot_list_p2, p3 = plot_list_p3)
 }
 
 
-# ----------------------------
-# First row
-# ----------------------------
-facet_vals_p1 <- r_ab_values #unique(dfN$r_ab)
+# Get horizontal row from plot lists at index i
+make_row <- function(lists, i) {
+  plot_grid(
+    plotlist = list(lists$p1[[i]], lists$p2[[i]], lists$p3[[i]]),
+    ncol = 3, align = "h"
+  )
+}
 
-plot_list_p1 <- lapply(seq_along(facet_vals_p1), function(i) {
-  df_sub <- dfN %>% filter(rn_signed < 0, r_ab == facet_vals_p1[i])
+# Get 3-column grid (all rows stacked)
+assemble_grid <- function(lists) {
+  col1 <- plot_grid(plotlist = lists$p1, ncol = 1, align = "v")
+  col2 <- plot_grid(plotlist = lists$p2, ncol = 1, align = "v", rel_heights = c(1,1,1))
+  col3 <- plot_grid(plotlist = lists$p3, ncol = 1, align = "v")
+  plot_grid(col1, col2, col3, ncol = 3, align = "h")
+}
+
+# extract gamma legend from centre column
+make_legend <- function(plot_list_p2) {
+  get_legend(
+    plot_list_p2[[1]] +
+      theme(legend.position = "bottom") +
+      labs(colour = expression(gamma))
+  )
+}
+
+# Wrap main plot with y-axis label and legend
+wrap_with_ylabel <- function(main, legend) {
+  shrunk  <- plot_grid(main, ncol = 1, scale = 0.93)
+  labeled <- ggdraw(shrunk) +
+    draw_label("Heterozygosity (H)", x = 0.02, y = 0.5, angle = 90, vjust = 0.5, fontfamily = "Times New Roman") 
+  plot_grid(labeled, legend, ncol = 1, rel_heights = c(1, 0.05))
+}
+
+
+#### Executing plots
+
+if (plot_type == "combined") { # For overdom+codom, etc.
+  lists <- build_plot_lists(params_combined)
+  main <- assemble_grid(lists)
+  legend <- make_legend(lists$p2)
+  final_plot <- wrap_with_ylabel(main, legend)
+  print(final_plot)
   
-  p <- ggplot(df_sub, aes_string(x = "r_bc", y = yaxis, colour = "as.factor(g)")) +
-    geom_point(size = 1) +
-    geom_line(aes(group = interaction(g,pA0)), alpha=0.4) +
-    geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
-    scale_x_continuous(
-      limits = c(min(dfN$r_bc), 0.5),
-      breaks = c(1e-5, 1e-3, 1e-1),
-      labels = c(expression(10^-5), expression(10^-3), expression(10^-1)),
-      transform = c("log10", "reverse")
-    ) +
-    scale_colour_manual(values = grDevices::colorRampPalette(c("dodgerblue3", "firebrick2"))(3)) +
-    scale_y_continuous(
-      breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0),
-      limits = c(-0.05, case_when(
-        yaxis=="het" ~ 0.5,
-        yaxis=="freq" ~ 1.0,
-        yaxis=="rel_het" ~ 2.0,
-        TRUE ~ 1.0
-      ))
-    ) +
-    theme_minimal() +
-    theme(
-      axis.title.y = element_blank(),
-      #axis.text.y = element_blank(),
-      #axis.ticks.y = element_blank(),
-      axis.ticks = element_line(colour = "black", linewidth = 0.2),
-      axis.ticks.length = unit(0.1, "cm"),
-      # axis.title.x = element_blank(),
-      strip.text = element_blank(),
-      strip.background = element_blank(),
-      legend.position = "none",
-      plot.margin = unit(c(0, 0, 0, 0), "cm")
-    ) +
-    coord_cartesian(clip = "off")
-  
-  # Hide x-axis for all but last facet
-  if (i < length(facet_vals_p1)) {
-    p <- p + theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.title.x = element_blank()
+  if (save_plot) {
+    figname <- paste0(
+      "../Fig/", file_prefix,
+      params_combined$architecture_type,
+      "_a=", params_combined$a_value,
+      "pA=", params_combined$pA_init,
+      ".pdf"
     )
-  } else {
-    p <- p + geom_text(
-      data = data.frame(x = max(dfN$rn_signed, na.rm = TRUE), y = 0),
-      aes(x = x, y = y),
-      label = "N←",
-      fontface = "bold",
-      hjust = 0.5, vjust = 1.8,
-      inherit.aes = FALSE
-    ) +
-    xlab(expression(r[an]))
-    
+    save_plot(figname, final_plot, base_height = 6, base_width = 8)
+    message("Saved: ", figname)
   }
   
-  p
-})
-
-# ----------------------------
-# Third row
-# ----------------------------
-facet_vals_p3 <- r_ab_values #unique(dfN$r_ab)
-
-plot_list_p3 <- lapply(seq_along(facet_vals_p3), function(i) {
-  df_sub <- dfN %>% filter(rn_signed > 0, r_ab == facet_vals_p3[i])
+} else if (plot_type == "separate") { # For OD only and DMI only
   
-  p <- ggplot(df_sub, aes_string(x = "r_bc", y = yaxis, colour = "as.factor(g)")) +
-    geom_point(size = 1) +
-    geom_line(aes(group = interaction(g,pA0)), alpha=0.4) +
-    geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
-    scale_x_continuous(
-      limits = c(min(dfN$r_bc), 0.65),
-      breaks = c(1e-5, 1e-3, 1e-1),
-      labels = scales::trans_format("log10", scales::math_format(10^.x)),
-      # labels = c(expression(10^-5), expression(10^-3), expression(10^-1)),
-      trans = "log10"
-    ) +
-    scale_colour_manual(values = grDevices::colorRampPalette(c("dodgerblue3", "firebrick2"))(3)) +
-    scale_y_continuous(
-      breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0),
-      limits = c(-0.05, case_when(
-        yaxis=="het" ~ 0.5,
-        yaxis=="freq" ~ 1.0,
-        yaxis=="rel_het" ~ 2.0,
-        TRUE ~ 1.0
-      )),
-      sec.axis = sec_axis(~ ., name = expression(gamma), breaks = NULL, labels = NULL)
-    ) +
-    geom_text(
-      data = data.frame(x = max(dfN$r_bc)+0.1, y = 0.5),
-      aes(x = x, y = y),
-      label = paste0("r[ab] == ",facet_vals_p3[i]),
-      parse = T,
-      inherit.aes = FALSE,
-      hjust = 0, vjust = 0, angle=270
-    ) +
-    theme_minimal() +
-    theme(
-      axis.title.y = element_blank(),
-      axis.text.y = element_blank(),
-      axis.ticks.y = element_blank(),
-      axis.ticks = element_line(colour = "black", linewidth = 0.2),
-      axis.ticks.length = unit(0.1, "cm"),
-      #axis.title.x = element_blank(),
-      strip.text = element_blank(),
-      strip.background = element_blank(),
-      legend.position = "none",
-      plot.margin = unit(c(0, 0, 0, 0), "cm")
-    ) +
-    coord_cartesian(clip = "off")
+  # Build plot lists independently 
+  lists_od <- build_plot_lists(params_od)
+  lists_dmis <- build_plot_lists(params_dmis)
   
-  if (i < length(facet_vals_p3)) {
-    p <- p + theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.title.x = element_blank()
+  # OD plot
+  od_plot <- make_row(lists_od, params_od$row_idx)
+  
+  # DMIs plot
+  dmis_rows <- lapply(params_dmis$row_idxs, function(i) make_row(lists_dmis, i))
+  dmis_plot <- plot_grid(plotlist = dmis_rows, ncol = 1)
+  
+  combined <- plot_grid(od_plot, dmis_plot, rel_heights = c(0.9, 1), ncol = 1)
+  legend <- make_legend(lists_dmis$p2)
+  final_plot <- wrap_with_ylabel(combined, legend)
+  print(final_plot)
+  
+  if (save_plot) {
+    figname <- paste0(
+      "../Fig/", file_prefix,
+      "separate_od_DMIs",
+      "_a=", params_od$a_value,
+      "_pA=", params_od$pA_init,
+      "_added_r_ab.pdf"
     )
-  } else {
-    p <- p + geom_text(
-      data = data.frame(x = max(dfN$rn_signed, na.rm = TRUE), y = 0),
-      aes(x = x, y = y),
-      label = "→N",
-      fontface = "bold",
-      hjust = 0.5, vjust = 1.8,
-      inherit.aes = FALSE
-    )  +
-    xlab(expression(r[bn]))
+    save_plot(figname, final_plot, base_height = 6, base_width = 8)
+    message("Saved: ", figname)
   }
-  
-  p
-})
-
-# ----------------------------
-# Center row
-# ----------------------------
-facet_vals_p2 <- r_ab_values # unique(alldfs_intra$r_ab)
-
-plot_list_p2 <- lapply(seq_along(facet_vals_p2), function(i) {
-  df_sub <- alldfs_intra %>% filter(pA0 == pA_init, a == a_value, b==b_value, g %in% g_values,  r_ab %in% r_ab_values, allele == 'N', r_ab == facet_vals_p2[i], type==architecture_type)
-  
-  p <- ggplot(df_sub, aes_string(x = "pos", y = yaxis, colour = "as.factor(g)")) +
-    geom_point(size = 1) +
-    geom_line(aes(group = interaction(g,pA0)), alpha=0.4) +
-    geom_hline(yintercept = 0, colour = "black", linetype = "solid", linewidth = 0.2) +
-    annotate("segment", x = 0, xend = 0, y = 0, yend = 0.5,
-             colour = "black", linetype = "dotted", linewidth = 0.2) +
-    annotate("segment", x = 1, xend = 1, y = 0, yend = 0.5,
-             colour = "black", linetype = "dotted", linewidth = 0.2) +
-    geom_point(
-      data = ABvalues %>% filter(r_ab==facet_vals_p2[i]),
-      aes_string(x = "pos", y = yaxis, colour = "as.factor(g)"),
-      inherit.aes = FALSE, size = 3
-    ) +
-    scale_colour_manual(values = grDevices::colorRampPalette(c("dodgerblue3", "firebrick2"))(3)) +
-    scale_y_continuous(
-      breaks = c(0, 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0),
-      limits = c(-0.05, case_when(
-        yaxis=="het" ~ 0.5,
-        yaxis=="freq" ~ 1.0,
-        yaxis=="rel_het" ~ 2.0,
-        TRUE ~ 1.0
-      ))
-    ) +
-    # scale_x_continuous(
-    #   breaks = c(0,0.5,1.0),
-    #   labels = c(expression(0),expression(0.5*10^0), expression(10^0))
-    # ) +
-    theme_minimal() +
-    theme(
-      axis.text.y = element_blank(),
-      axis.ticks.y = element_blank(),
-      axis.ticks = element_line(colour = "black", linewidth = 0.2),
-      axis.ticks.length = unit(0.1, "cm"),
-      strip.text   = element_blank(),
-      legend.position="none",
-      # axis.title.x = element_blank(),
-      axis.title.y = element_blank(),
-      plot.margin = unit(c(0, 0, 0.085, 0), "cm")
-    ) +
-    coord_cartesian(clip = "off")
-  
-  if (i < length(facet_vals_p2)) {
-    p <- p + theme(
-      axis.text.x = element_blank(),
-      axis.ticks.x = element_blank(),
-      axis.title.x = element_blank(),
-      plot.margin = unit(c(0, 0, 0, 0), "cm")
-    )
-  } else {
-    p <- p + geom_text(
-      data = data.frame(x = 1, y = 0),
-      aes(x = x, y = y),
-      label = "B",
-      fontface = "bold",
-      hjust = 0.5, vjust = 1.8,
-      inherit.aes = FALSE
-    ) +
-      geom_text(
-        data = data.frame(x = 0, y = 0),
-        aes(x = x, y = y),
-        label = "A",
-        fontface = "bold",
-        hjust = 0.5, vjust = 1.8,
-        inherit.aes = FALSE
-      )  +
-      xlab("Relative position of N")
-  }
-    
-  
-  p
-})
-
-
-# Extract the legend from one plot (all plots share the same color scale)
-legend <- get_legend(
-  plot_list_p1[[1]] + 
-    theme(legend.position = "bottom") +
-    labs(colour = expression(r[ab]))
-)
-
-# Build each column (stacked vertically)
-col1 <- plot_grid(plotlist = plot_list_p1, ncol = 1, align = "v")
-col2 <- plot_grid(plotlist = plot_list_p2, ncol = 1, align = "v")
-col3 <- plot_grid(plotlist = plot_list_p3, ncol = 1, align = "v")
-
-# Combine columns horizontally
-main_plot <- plot_grid(col1, col2, col3, ncol = 3, align = "h")
-
-
-legend <- get_legend(
-  plot_list_p2[[1]] + 
-    theme(legend.position = "bottom") +
-    labs(colour = expression(gamma))  # legend title
-)
-
-main_plot_shrunk <- plot_grid(main_plot, ncol = 1, scale = 0.93)
-
-main_plot_labeled <- ggdraw(main_plot_shrunk) +
-  draw_label("Heterozygosity (H)", x = 0.02, y = 0.5, angle = 90, vjust = 0.5)
-
-final_plot <- plot_grid(main_plot_labeled, legend, ncol = 1, rel_heights = c(1, 0.05))
-
-# Draw the final figure
-print(final_plot)
-
-#save_plot("../Fig/od_dmis_codominant_a=0.01.svg", final_plot, base_height = 6, base_width = 8)
-#save_plot("../Fig/od_dmis_codominant_a=0.01.pdf", final_plot, base_height = 6, base_width = 8)
-#save_plot("../Fig/od_dmis_codominant_a=0.02_pA=0.6.pdf", final_plot, base_height = 6, base_width = 8)
-#save_plot("../Fig/od_dmis_codominant_a=0.02_pA=0.7.pdf", final_plot, base_height = 6, base_width = 8)
-
-#save_plot("../Fig/od_dmis_recessive_a=0.01.svg", final_plot, base_height = 6, base_width = 8)
-#save_plot("../Fig/od_dmis_recessive_a=0.01.pdf", final_plot, base_height = 6, base_width = 8)
-
-#save_plot("../Fig/dmis_codominant.svg", final_plot, base_height = 6, base_width = 8)
-#save_plot("../Fig/dmis_codominant.pdf", final_plot, base_height = 6, base_width = 8)
-
-
-
-#########################
-# This plot has to be generated in two steps, one for overdominance and one for DMIs only. 
-###### overdominance plot
-# Get plot for:
-# alpha = 0.02; r_ab=0.01; g = c(0)
-
-# row1 <- plot_grid(plotlist = c(plot_list_p1[[1]],plot_list_p2[[1]],plot_list_p3[[1]]), ncol = 3, align = "h")
-# row2 <- plot_grid(plotlist = c(plot_list_p1[[2]],plot_list_p2[[2]],plot_list_p3[[2]]), ncol = 3, align = "h")
-# row3 <- plot_grid(plotlist = c(plot_list_p1[[3]],plot_list_p2[[3]],plot_list_p3[[3]]), ncol = 3, align = "h")
-# 
-# od_plot <- row2
-# od_plot
-###### recessive DMIs plot
-# dmis_plot <- main_plot
-# #
-# dmis_plot <- plot_grid(plotlist = c(plot_list_p1[[2]], plot_list_p2[[2]], plot_list_p3[[2]]), ncol = 3, align = "v")
-# row1 <- plot_grid(plotlist = c(plot_list_p1[[1]],plot_list_p2[[1]],plot_list_p3[[1]]), ncol = 3, align = "h")
-# row2 <- plot_grid(plotlist = c(plot_list_p1[[2]],plot_list_p2[[2]],plot_list_p3[[2]]), ncol = 3, align = "h")
-# row3 <- plot_grid(plotlist = c(plot_list_p1[[3]],plot_list_p2[[3]],plot_list_p3[[3]]), ncol = 3, align = "h")
-# 
-# dmis_plot <- row3
-# 
-# ## Joint plot
-# od_dmis_plot <- plot_grid(od_plot, dmis_plot, rel_heights = c(0.8,1), ncol = 1)
-# 
-# od_dmis_plot_shrunk <- plot_grid(od_dmis_plot, ncol = 1, scale = 0.93)
-# 
-# 
-# od_dmis_plot_labeled <- ggdraw(od_dmis_plot_shrunk) +
-#    draw_label("Heterozygosity (H)", x = 0.02, y = 0.5, angle = 90, vjust = 0.5)
-# 
-# 
-# legend <- get_legend(
-#   plot_list_p2[[1]] +
-#     theme(legend.position = "bottom") +
-#     labs(colour = expression(gamma))  # legend title
-# )
-# 
-# od_dmis_plot_2 <- plot_grid(od_dmis_plot_labeled, legend, ncol = 1, rel_heights = c(1, 0.05))
-# # 
-# print(od_dmis_plot_2)
- 
-#save_plot("../Fig/separate_od_DMIs_a=0.01.svg", od_dmis_plot_2, base_height = 4, base_width = 8)
-#save_plot("../Fig/separate_od_DMIs_a=0.01.pdf", od_dmis_plot_2, base_height = 4, base_width = 8)
-
-#save_plot("../Fig/separate_od_DMIs_a=0.02_pA=0.7.svg", od_dmis_plot_2, base_height = 4, base_width = 8)
-#save_plot("../Fig/separate_od_DMIs_a=0.02_pA=0.7.pdf", od_dmis_plot_2, base_height = 4, base_width = 8)
-
-
-###########
-
-# 
-# row_plot_shrunk <- plot_grid(row_plot, ncol = 1, scale = 0.93)
-# 
-# row_plot_labeled <- ggdraw(row_plot_shrunk) +
-#   draw_label("Heterozygosity (H)", x = 0.02, y = 0.5, angle = 90, vjust = 0.5)
-# 
-# row_plot <- plot_grid(row_plot_labeled, legend, ncol = 1, rel_heights = c(1, 0.05))
-# 
-# print(row_plot)
-# # 
+}
