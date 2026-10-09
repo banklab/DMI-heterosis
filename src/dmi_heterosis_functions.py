@@ -802,6 +802,7 @@ def plot_dyn_haplo(haplo_freq,
                     title="",
                     neut="C", 
                     exclude=[],
+                    showplot=False,
                     haplotypes = ["abn", "Abn", "aBn", "ABn", "abN", "AbN", "aBN", "ABN"],
                     **kwargs):
     '''
@@ -828,7 +829,8 @@ def plot_dyn_haplo(haplo_freq,
     if "filename" in kwargs:
         fig.savefig(kwargs["filename"], dpi=300, bbox_inches='tight')
     
-    plt.show()
+    if showplot:
+        plt.show()
     
     return output[-1]
 
@@ -843,6 +845,7 @@ def plot_dyn_freqs(haplo_freq,
                    neut="C", 
                    palette = {'A':'#5C43AF','B':'#FE842F', 'N':'#194122', 'A,B':'#FE842F'},
                    exclude=[],
+                   showplot=False,
                    **kwargs):
 
     '''
@@ -892,7 +895,8 @@ def plot_dyn_freqs(haplo_freq,
     sns.despine()
     plt.title(title)
     plt.legend(title="Allele", bbox_to_anchor=(1.02, 1), loc='upper left', borderaxespad=0, frameon=False)
-    plt.show()
+    if showplot:
+        plt.show()
     if "filename" in kwargs.keys():
         fig.savefig(kwargs["filename"], dpi=300, bbox_inches='tight')
     return(get_alleles(output[-1]))

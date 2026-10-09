@@ -4,7 +4,7 @@
 # 08.2024
 #
 # Script to generate heatmap plots of allele frequency and linkage
-# disequilibrium using numerical solutions of a two locus DMIs/heterosis ODE.
+# disequilibrium using numerical solutions of a two locus BDMIs/heterosis ODE.
 ###############################################################################
 
 library(ggplot2)
@@ -98,7 +98,7 @@ plot_dmi_heatmap <- function(df, r_lim = NULL, rs_lim = NULL, max_ga = 4.0,
       labels = function(x) sprintf("%.1f", x)
     ) +
     labs(
-      x = expression(paste("Relative strength of DMIs (" * gamma * "/" * alpha * ")")),
+      x = expression(paste("Relative strength of BDMIs (" * gamma * "/" * alpha * ")")),
       y = expression(r / alpha),
       fill = fill_expr
     ) +
@@ -134,7 +134,9 @@ scientific_10 <- function(x) {
 ###############################################################################
 
 dfcodominant01 <- load_eq_df("../Data/codominant_sols_freqs_20250911_a=0.01.csv", 0.01)
+dfcodominant01 <- load_eq_df("../Data/codominant_sols_freqs_20260925_a=0.01.csv", 0.01) # New
 dfcodominant001 <- load_eq_df("../Data/codominant_sols_freqs_20250911_a=0.001.csv", 0.001)
+dfcodominant001 <- load_eq_df("../Data/codominant_sols_freqs_20260925_a=0.001.csv", 0.001) #New
 
 dfreces005 <- load_eq_df("../Data/recessive_sols_ext_1.csv", 0.005) %>% filter(r > 0)
 dfreces <- load_eq_df("../Data/recessive_sols_ext_001.csv", 0.001) %>% filter(r > 0)
@@ -210,7 +212,7 @@ dfcodominant001 %>%
     colour = "#47325f"
   ) +
   geom_point(shape = 19, size = 2.5) +
-  xlab(expression("Relative strength of DMIs (" * gamma * "/" * alpha * ")")) +
+  xlab(expression("Relative strength of BDMIs (" * gamma * "/" * alpha * ")")) +
   ylab(expression("Equilibrium frequency (" * P[A] * ")")) +
   scale_x_continuous(limits = c(0, 4.0), labels = function(x) {
     sprintf("%.1f", x)
@@ -309,7 +311,7 @@ dfcodominant001 %>%
   #   ),
   #   linewidth = 0.75
   # ) +
-  xlab(expression("Relative strength of DMIs (" * gamma * "/" * alpha * ")")) +
+  xlab(expression("Relative strength of BDMIs (" * gamma * "/" * alpha * ")")) +
   ylab(expression("Linkage disequilibrium (D)")) +
   scale_x_continuous(
     limits = c(0, 4.0),
@@ -469,7 +471,7 @@ dfcodominant001 %>%
   labs(
     #title=expression("Allele frequency  ("*alpha*"=0.001)"),
     x = expression(paste(
-      "Relative strength of DMIs (" * gamma * "/" * alpha * ")"
+      "Relative strength of BDMIs (" * gamma * "/" * alpha * ")"
     )),
     y = expression(r / alpha),
     fill = expression(bar(w))
